@@ -68,10 +68,37 @@ WORKDIR /
 RUN useradd -r -m shiny
 RUN ln -s /usr/local/shiny-server/bin/shiny-server /usr/bin/shiny-server
 
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends \
+        gfortran \
+        ca-certificates \
+        xvfb \
+        libatomic1 \
+        libbz2-dev \
+        libcairo2-dev \
+        libcurl4-openssl-dev \
+        libgomp1 \
+        libjpeg-dev \
+        liblzma-dev \
+        libpcre2-8-0 \
+        libpng-dev \
+        libpq-dev \
+        libreadline6-dev \
+        libssl-dev \
+        libx11-dev \
+        libxml2-dev \
+        libxt-dev \
+        libzstd-dev \
+        g++ make && \
+    rm -rf /var/lib/apt/lists/*
+
 #Create folder structure and set permissions
 RUN mkdir -p        /var/log/shiny-server && \
     chown shiny     /var/log/shiny-server && \
     chmod -R 777    /var/log/shiny-server && \
+    mkdir -p        /var/run/shiny-server && \
+    chown shiny     /var/run/shiny-server && \
+    chmod -R 777    /var/run/shiny-server && \
     mkdir -p        /srv/shiny-server     && \
     chmod -R 777    /srv/shiny-server     && \
     mkdir -p        /var/lib/shiny-server && \
@@ -79,22 +106,18 @@ RUN mkdir -p        /var/log/shiny-server && \
     mkdir -p        /etc/shiny-server     && \
     chmod -R 777    /srv/shiny-server
 
+#Install R packages with script instead of the init.sh approach originally proposed
+COPY install_r_packages.R /etc/
+RUN Rscript /etc/install_r_packages.R
+
+#Preload hello world project
+# COPY hello/* /srv/shiny-server/hello/
+
 #Shiny server configuration
 COPY shiny-server.conf /etc/shiny-server/shiny-server.conf
 
-#Init file for installing R-packages from host
+#Init file enables running as non-root
 COPY init.sh /etc/shiny-server/init.sh
 RUN chmod 777 /etc/shiny-server/init.sh
-
-RUN apt-get update && apt-get install -y --no-install-recommends \
-    gfortran libreadline6-dev libcurl4-openssl-dev ca-certificates \
-    libcairo2-dev xvfb libx11-dev libxt-dev libpng-dev \
-    libjpeg-dev libbz2-dev libzstd-dev liblzma-dev libatomic1 \
-    libgomp1 libpcre2-8-0 libssl-dev libxml2-dev g++ make && \
-    rm -rf /var/lib/apt/lists/*
-
-#Preload hello world project
-COPY hello/* /srv/shiny-server/hello/
-RUN R -e "install.packages(c('shiny', 'Cairo'), repos='http://cran.rstudio.com/', clean = TRUE)"
-
+USER shiny
 ENTRYPOINT ["/etc/shiny-server/init.sh"]
